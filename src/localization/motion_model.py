@@ -1,3 +1,5 @@
+import numpy as np
+
 class MotionModel:
 
     def __init__(self):
@@ -31,8 +33,20 @@ class MotionModel:
         """
         
         ####################################
-        # TODO
+        # TODO: add noise
 
-        raise NotImplementedError
-
+        N = particles.shape[0]
+        for i in range(N):
+            #Rotate the position components of the odometry to the world frame
+            cos,sin = np.cos(particles[i,2]),np.sin(particles[i,2])
+            rotated_displacement = (cos*odometry[0]-sin*odometry[1],
+                                    sin*odometry[0]+cos*odometry[1])
+                            
+            #Add the displacements to the pose
+            particles[i,0] += rotated_displacement[0]
+            particles[i,1] += rotated_displacement[1]
+            particles[i,2] += odometry[2]
+        
+        return particles
+            
         ####################################

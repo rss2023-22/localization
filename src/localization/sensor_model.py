@@ -1,5 +1,6 @@
 import numpy as np
 from localization.scan_simulator_2d import PyScanSimulator2D
+import matplotlib.pyplot as plt
 # Try to change to just `from scan_simulator_2d import PyScanSimulator2D` 
 # if any error re: scan_simulator_2d occurs
 
@@ -74,17 +75,16 @@ class SensorModel:
             200x200
         """
 
-
-
-        # CODE FROM INDIVIDUAL PART: 
-
-        # d=7.0
-        zmax = 10.0
-        sigma = self.sigma_hit # check this is right? 
+        zmax = 200
+        sigma = self.sigma_hit 
         alphaHit = self.alpha_hit
         alphaShort = self.alpha_short
         alphaMax = self.alpha_max
         alphaRand = self.alpha_rand
+        table_width = self.table_width
+
+        plot = False # if want to plot the probability distribution. Requires matplotlib.pyplot imported as plt
+        checksum = False # if want to print sum's by column (to make sure ~1.0 for proper normalization)
 
         def phit(zk,d):
             if zk>=0 and zk<=zmax:
@@ -96,7 +96,7 @@ class SensorModel:
                 return 2.0/d*(1-(zk/d))
             return 0
 
-        def pmax(zk,d): # CHANGE THIS FUNCTION!!!
+        def pmax(zk,d): 
             if zk == zmax:
                 return 1
             return 0
@@ -106,41 +106,46 @@ class SensorModel:
                 return 1/zmax
             return 0
 
-        def getP(zk,d):
-            return alphaHit*phit(zk,d)+alphaShort*pshort(zk,d)+alphaMax*pmax(zk,d)+alphaRand*prand(zk,d)
-            
-            #return getP(z,d)
-        
+        def getP(zk,d): # everything except hit
+            return alphaShort*pshort(zk,d)+alphaMax*pmax(zk,d)+alphaRand*prand(zk,d)
+                
         #compute PHIT prior to others, columns are d
         out = []
-        table_width = self.table_width
-        for i in range (table_width): # d
+        for i in range(table_width): # z
             row = []
-            for j in range(table_width): # z
-                row.append(phit(i,j))
-
+            for j in range(table_width): # d
+                row.append(alphaHit*phit(i,j))
             row = np.array(row) 
             
             # normalize row
             totalVals = sum(row)
-            np.divide(row,totalVals)
+            row = row / totalVals
 
             # add row to out 
-            out.append(row)
-
-        print(out)
-
-
-
-        #normalize PHIT vals
+            out.append(row)    
         
+        #compute other part of distribution
+        for i in range(table_width):
+            for j in range(table_width):
+                out[i][j] += getP(i,j)
 
+        out = np.array(out)
+        out = out/out.sum(axis=0) # normalize array by columns
 
-        #compute other vals 
+        if checksum:
+            for i in range(table_width):
+                summed = 0
+                for j in range(table_width):
+                    summed += out[j][i]
+                print(summed)
+        if plot:
+            hf = plt.figure()
+            ha = hf.add_subplot(111, projection='3d')
+            X , Y = np.meshgrid(range(201), range(201))
+            ha.plot_surface(X, Y, out)
+            plt.show()
 
-
-        #normalize other vals
-
+        pass
 
     def evaluate(self, particles, observation):
         """

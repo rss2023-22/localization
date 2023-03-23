@@ -11,7 +11,6 @@ from tf.transformations import quaternion_from_euler
 
 class SensorModel:
 
-
     def __init__(self):
         # Fetch parameters
         self.map_topic = rospy.get_param("~map_topic")
@@ -54,6 +53,7 @@ class SensorModel:
                 queue_size=1)
 
     def precompute_sensor_model(self):
+
         """
         Generate and store a table which represents the sensor model.
         
@@ -75,7 +75,7 @@ class SensorModel:
             200x200
         """
 
-        zmax = 200
+        zmax = self.table_width-1
         sigma = self.sigma_hit 
         alphaHit = self.alpha_hit
         alphaShort = self.alpha_short
@@ -87,24 +87,24 @@ class SensorModel:
         checksum = False # if want to print sum's by column (to make sure ~1.0 for proper normalization)
 
         def phit(zk,d):
-            if zk>=0 and zk<=zmax:
-                return 1.0/((2*np.pi*sigma**2)**(0.5))*np.exp(-1.0*(((zk-d)**2)/(2*sigma**2)))
-            return 0
+            if 0<=zk<=zmax:
+                return 1.0/((2.0*np.pi*sigma**2.0)**(0.5))*np.exp(-1.0*(((zk-d)**2.0)/(2.0*sigma**2.0)))
+            return 0.0
 
         def pshort(zk,d):
             if zk >= 0 and zk<=d and d != 0:
-                return 2.0/d*(1-(zk/d))
-            return 0
+                return 2.0/d*(1-(float(zk)/d))
+            return 0.0
 
         def pmax(zk,d): 
             if zk == zmax:
-                return 1
-            return 0
+                return 1.0
+            return 0.0
 
         def prand(zk,d):
             if zk>=0 and zk <= zmax:
-                return 1/zmax
-            return 0
+                return 1.0/zmax
+            return 0.0
 
         def getP(zk,d): # everything except hit
             return alphaShort*pshort(zk,d)+alphaMax*pmax(zk,d)+alphaRand*prand(zk,d)
@@ -114,40 +114,25 @@ class SensorModel:
         for i in range(table_width): # z
             row = []
             for j in range(table_width): # d
-                row.append(alphaHit*phit(i,j))
+                row.append(phit(i,j))
             row = np.array(row) 
-            
-            # normalize row
-            totalVals = sum(row)
-            row = row / totalVals
+            out.append(row)  
 
-            # add row to out 
-            out.append(row)    
+        out = np.array(out)  
+        out = out/out.sum(axis=0)
+        out *= alphaHit
         
         #compute other part of distribution
         for i in range(table_width):
             for j in range(table_width):
                 out[i][j] += getP(i,j)
 
-        out = np.array(out)
-        out = out/out.sum(axis=0) # normalize array by columns
-
-        if checksum:
-            for i in range(table_width):
-                summed = 0
-                for j in range(table_width):
-                    summed += out[j][i]
-                print(summed)
-        if plot:
-            hf = plt.figure()
-            ha = hf.add_subplot(111, projection='3d')
-            X , Y = np.meshgrid(range(201), range(201))
-            ha.plot_surface(X, Y, out)
-            plt.show()
-
-        pass
+        # normalize out
+        out = out/out.sum(axis=0)
+        self.sensor_model_table = out
 
     def evaluate(self, particles, observation):
+        
         """
         Evaluate how likely each particle is given
         the observed scan.
@@ -168,23 +153,42 @@ class SensorModel:
                given the observation and the map.
         """
 
-        if not self.map_set:
-            return
-
         ####################################
-        # TODO
         # Evaluate the sensor model here!
-        #
-        # You will probably want to use this function
-        # to perform ray tracing from all the particles.
-        # This produces a matrix of size N x num_beams_per_particle 
 
         scans = self.scan_sim.scan(particles)
 
-        ####################################
+        def convert(x,resolution):
+            # x is np array
+            lidar_scale_to_map_scale = 1.0
+            x = x/(resolution*lidar_scale_to_map_scale)
+            zmax = self.table_width-1
+            new = np.clip(x, 0.0, zmax)
+            return new
+
+        scans = convert(scans,self.map_resolution) # list of laserscans (predicted)
+        observation = convert(observation, self.map_resolution) # one laserscan, actual
+
+
+        # if shit latency; fix! use numpy instead, can do 1 liners! use np.prod and whatnot
+        out = []
+        for i in range(len(scans)):
+            scan = scans[i]
+            prob = 1.0
+            for s in range(len(scan)):
+                guessed = scan[s]
+                actual = observation[s]
+                prob *= self.sensor_model_table[int(np.rint(actual))][int(np.rint(guessed))]
+            out.append(prob)
+        out = (np.array(out))**(1.0/2.2) # adjust vals as in readme.ipynb
+        return out
+
+            
 
     def map_callback(self, map_msg):
         # Convert the map to a numpy array
+        self.map_resolution = map_msg.info.resolution
+
         self.map = np.array(map_msg.data, np.double)/100.
         self.map = np.clip(self.map, 0, 1)
 

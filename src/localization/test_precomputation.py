@@ -21,7 +21,7 @@ def precompute_sensor_model():
     alphaMax = alpha_max
     alphaRand = alpha_rand
 
-    plot = True # if want to plot the probability distribution. Requires matplotlib.pyplot imported as plt
+    plot = False # if want to plot the probability distribution. Requires matplotlib.pyplot imported as plt
     checksum = False # if want to print sum's by column (to make sure ~1.0 for proper normalization)
 
     def phit(zk,d):
@@ -36,7 +36,7 @@ def precompute_sensor_model():
 
     def pmax(zk,d): # CHANGE THIS FUNCTION!!!
         if zk == zmax:
-            return 1
+            return 1.0
         return 0
 
     def prand(zk,d):
@@ -52,22 +52,24 @@ def precompute_sensor_model():
     for i in range(table_width): # z
         row = []
         for j in range(table_width): # d
-            row.append(alphaHit*phit(i,j))
+            #row.append(alphaHit*phit(i,j))
+            row.append(phit(i,j))
         row = np.array(row) 
-        
-        # normalize row
-        totalVals = sum(row)
-        row = row / totalVals
-
+        # normalize by row
+        #totalVals = sum(row)
+        #row = row / totalVals
         # add row to out 
-        out.append(row)    
+        out.append(row)  
+
+    out = np.array(out)  
+    out = out/out.sum(axis=0)
+    out *= alphaHit
     
     #compute other part of distribution
     for i in range(table_width):
         for j in range(table_width):
             out[i][j] += getP(i,j)
 
-    out = np.array(out)
     # normalize out
     out = out/out.sum(axis=0)
 
@@ -83,7 +85,7 @@ def precompute_sensor_model():
         X , Y = np.meshgrid(range(201), range(201))
         ha.plot_surface(X, Y, out)
         plt.show()
-
+    print(out)
     pass
 
 

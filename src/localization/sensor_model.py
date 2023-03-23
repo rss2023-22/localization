@@ -70,8 +70,77 @@ class SensorModel:
         
         returns:
             No return type. Directly modify `self.sensor_model_table`.
+            columns are d values!
+            200x200
         """
-        raise NotImplementedError
+
+
+
+        # CODE FROM INDIVIDUAL PART: 
+
+        # d=7.0
+        zmax = 10.0
+        sigma = self.sigma_hit # check this is right? 
+        alphaHit = self.alpha_hit
+        alphaShort = self.alpha_short
+        alphaMax = self.alpha_max
+        alphaRand = self.alpha_rand
+
+        def phit(zk,d):
+            if zk>=0 and zk<=zmax:
+                return 1.0/((2*np.pi*sigma**2)**(0.5))*np.exp(-1.0*(((zk-d)**2)/(2*sigma**2)))
+            return 0
+
+        def pshort(zk,d):
+            if zk >= 0 and zk<=d and d != 0:
+                return 2.0/d*(1-(zk/d))
+            return 0
+
+        def pmax(zk,d): # CHANGE THIS FUNCTION!!!
+            if zk == zmax:
+                return 1
+            return 0
+
+        def prand(zk,d):
+            if zk>=0 and zk <= zmax:
+                return 1/zmax
+            return 0
+
+        def getP(zk,d):
+            return alphaHit*phit(zk,d)+alphaShort*pshort(zk,d)+alphaMax*pmax(zk,d)+alphaRand*prand(zk,d)
+            
+            #return getP(z,d)
+        
+        #compute PHIT prior to others, columns are d
+        out = []
+        table_width = self.table_width
+        for i in range (table_width): # d
+            row = []
+            for j in range(table_width): # z
+                row.append(phit(i,j))
+
+            row = np.array(row) 
+            
+            # normalize row
+            totalVals = sum(row)
+            np.divide(row,totalVals)
+
+            # add row to out 
+            out.append(row)
+
+        print(out)
+
+
+
+        #normalize PHIT vals
+        
+
+
+        #compute other vals 
+
+
+        #normalize other vals
+
 
     def evaluate(self, particles, observation):
         """

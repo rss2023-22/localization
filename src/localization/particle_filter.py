@@ -1,5 +1,5 @@
 #!/usr/bin/env python2
-
+import numpy as np
 import rospy
 from sensor_model import SensorModel
 from motion_model import MotionModel
@@ -28,10 +28,9 @@ class ParticleFilter:
         scan_topic = rospy.get_param("~scan_topic", "/scan")
         odom_topic = rospy.get_param("~odom_topic", "/odom")
         self.laser_sub = rospy.Subscriber(scan_topic, LaserScan,
-                                          YOUR_LIDAR_CALLBACK, # TODO: Fill this in
+                                          lidar_callback(), # TODO: Fill this in
                                           queue_size=1)
-        self.odom_sub  = rospy.Subscriber(odom_topic, Odometry,
-                                          YOUR_ODOM_CALLBACK, # TODO: Fill this in
+        self.odom_sub  = rospy.Subscriber(odom_topic, Odometry, odom_callback(), # TODO: Fill this in
                                           queue_size=1)
 
         #  *Important Note #2:* You must respond to pose
@@ -40,8 +39,9 @@ class ParticleFilter:
         #     "Pose Estimate" feature in RViz, which publishes to
         #     /initialpose.
         self.pose_sub  = rospy.Subscriber("/initialpose", PoseWithCovarianceStamped,
-                                          YOUR_POSE_INITIALIZATION_CALLBACK, # TODO: Fill this in
+                                          self.odom_sub.pose, # TODO: Fill this in
                                           queue_size=1)
+        # need to check with rviz? no callback function bc self.odom_sub is a geometry message and we just want the pose
 
         #  *Important Note #3:* You must publish your pose estimate to
         #     the following topic. In particular, you must use the
@@ -64,6 +64,38 @@ class ParticleFilter:
         #
         # Publish a transformation frame between the map
         # and the particle_filter_frame.
+
+
+        ########## DINURI'S CODE STARTS HERE ############
+        # Find a way to initialize the particles on rviz
+
+        # Callback functions
+        def odom_callback(odometry):
+            '''
+            Uses motion model
+            '''
+            odom = np.array(self.odom_sub.twist.twist.linear.x, self.odom_sub.self.odom_sub.twist.twist.linear.y, self.odom_sub.self.odom_sub.twist.twist.angular.z)
+            particles = self.motion_model.evaluate(self.pose_sub, odom)
+            # take average of the calculated particles returned by the evaluate function
+            N = particles.shape[0]
+            for i in range(N):
+                x_pos += particles[i,1]
+                y_pos += particles[i,2]
+                cos,sin += np.cos(particles[i,3]), np.sin(particles[i,3])
+            avg_x = x_pos/N
+            avg_y = y_pos/N
+            avg_cos,avg_sin = cos*1/N,sin*1/N
+            theta_pos = np.arctan(avg_sin/avg_cos)
+            self.pose_sub = [avg_x, avg_y, theta_pos]
+            self.odom_pub.publish(self.pose_sub)
+
+        def lidar_callback():
+
+            probs = self.sensor_model.evaluate(self.pose_sub, self.laser_sub)
+            # resample the particles based on these probabilities
+            # Use np.random.choice?? Check on this
+            N = probs.shape[0]
+            np.random.choice(1,N)
 
 
 if __name__ == "__main__":

@@ -27,11 +27,13 @@ class ParticleFilter:
         #     information, and *not* use the pose component.
         scan_topic = rospy.get_param("~scan_topic", "/scan")
         odom_topic = rospy.get_param("~odom_topic", "/odom")
-        self.laser_sub = rospy.Subscriber(scan_topic, LaserScan,
-                                          lidar_callback(), # TODO: Fill this in
-                                          queue_size=1)
-        self.odom_sub  = rospy.Subscriber(odom_topic, Odometry, odom_callback(), # TODO: Fill this in
-                                          queue_size=1)
+        # self.laser_sub = rospy.Subscriber(scan_topic, LaserScan,
+        #                                   lidar_callback(), # TODO: Fill this in
+        #                                   queue_size=1)
+        self.laser_sub = rospy.Subscriber(scan_topic, LaserScan, lidar_callback(), queue_size=1)
+        # self.odom_sub  = rospy.Subscriber(odom_topic, Odometry, odom_callback(), # TODO: Fill this in
+        #                                   queue_size=1)
+        self.odom_sub  = rospy.Subscriber(odom_topic, Odometry, odom_callback(), queue_size=1)
 
         #  *Important Note #2:* You must respond to pose
         #     initialization requests sent to the /initialpose

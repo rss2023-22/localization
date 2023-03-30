@@ -68,7 +68,23 @@ class ParticleFilter:
 
         ########## DINURI'S CODE STARTS HERE ############
         # Find a way to initialize the particles on rviz
-
+        # Compute Average of Particles
+        def calc_avg(particles):
+            '''
+            Take average of the calculated particles returned by the evaluate function of motion or sensor model
+            '''
+            N = particles.shape[0]
+            for i in range(N):
+                x_pos += particles[i,1]
+                y_pos += particles[i,2]
+                cos += np.cos(particles[i,3])
+                sin += np.sin(particles[i,3])
+            avg_x = x_pos/N
+            avg_y = y_pos/N
+            avg_cos = cos*1/N
+            avg_sin = sin*1/N
+            theta_pos = np.arctan(avg_sin/avg_cos)
+            avg_pose = [avg_x, avg_y, theta_pos]
         # Callback functions
         def odom_callback(odometry):
             '''
@@ -76,26 +92,30 @@ class ParticleFilter:
             '''
             odom = np.array(self.odom_sub.twist.twist.linear.x, self.odom_sub.self.odom_sub.twist.twist.linear.y, self.odom_sub.self.odom_sub.twist.twist.angular.z)
             particles = self.motion_model.evaluate(self.pose_sub, odom)
-            # take average of the calculated particles returned by the evaluate function
-            N = particles.shape[0]
-            for i in range(N):
-                x_pos += particles[i,1]
-                y_pos += particles[i,2]
-                cos,sin += np.cos(particles[i,3]), np.sin(particles[i,3])
-            avg_x = x_pos/N
-            avg_y = y_pos/N
-            avg_cos,avg_sin = cos*1/N,sin*1/N
-            theta_pos = np.arctan(avg_sin/avg_cos)
-            self.pose_sub = [avg_x, avg_y, theta_pos]
+            self.pose_sub = calc_avg(particles)
             self.odom_pub.publish(self.pose_sub)
 
         def lidar_callback():
+            '''
+            Uses sensor model
+            '''
 
             probs = self.sensor_model.evaluate(self.pose_sub, self.laser_sub)
+            odom = np.array(self.odom_sub.twist.twist.linear.x, self.odom_sub.self.odom_sub.twist.twist.linear.y, self.odom_sub.self.odom_sub.twist.twist.angular.z)
+            particles = self.motion_model.evaluate(self.pose_sub, odom)
             # resample the particles based on these probabilities
             # Use np.random.choice?? Check on this
             N = probs.shape[0]
-            np.random.choice(1,N)
+            # resample position by only including particles that have over 50% chance of being there
+            resam_choices = np.array()
+            resam_choices_probs = np.array()
+            for i in probs:
+                if i > 0.5:
+                    np.append(resam_choices, particles[i,:])
+                    np.append(resam_choices_probs, probs[i,:])
+            particle_resample = np.random.choice(resam_choices, p=resam_choices_probs)
+            self.pose_sub = calc_avg(particle_resample)
+            self.odom_pub.publish(self.pose_sub)
 
 
 if __name__ == "__main__":

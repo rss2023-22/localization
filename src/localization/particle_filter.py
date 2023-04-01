@@ -27,6 +27,9 @@ class ParticleFilter:
         scan_topic = rospy.get_param("~scan_topic", "/scan")
         odom_topic = rospy.get_param("~odom_topic", "/odom")
 
+        self.initial_pose = [0,0,0]
+
+
         self.laser_sub = rospy.Subscriber(scan_topic, LaserScan, self.lidar_callback, queue_size=1)
 
         self.odom_sub  = rospy.Subscriber(odom_topic, Odometry, self.odom_callback, queue_size=1)
@@ -89,7 +92,7 @@ class ParticleFilter:
         Gets initial pose from rviz data
         Remember to add posewithcovariance topic on rviz
         '''
-        initial_pose = np.array([data.pose.position.x, data.pose.position.y, data.pose.orientation.z])
+        self.initial_pose = np.array([data.pose.position.x, data.pose.position.y, data.pose.orientation.z])
     
     def odom_callback(self,data):
         '''
@@ -98,7 +101,8 @@ class ParticleFilter:
         # get odometry data
         odom = np.array([data.twist.twist.linear.x, data.twist.twist.linear.y, data.twist.twist.angular.z])
         # update particle positions from initial pose
-        updated_particles = self.motion_model.evaluate(np.array(self.pose_sub), odom)
+        rospy.loginfo(self.initial_pose)
+        updated_particles = self.motion_model.evaluate(np.array(self.initial_pose), odom)
         avg = self.calc_avg(updated_particles)
         self.odom_pub.publish(avg)
 
@@ -107,11 +111,11 @@ class ParticleFilter:
         Uses sensor model
         '''
         # calculate probabilities given initial pose and lidar data
-        probs = self.sensor_model.evaluate(np.array(self.pose_sub), data.ranges)
+        probs = self.sensor_model.evaluate(np.array(self.initial_pose), data.ranges)
         # do not use motion model here, use the current particle positions
         # odom = np.array(self.odom_sub.twist.twist.linear.x, self.odom_sub.self.odom_sub.twist.twist.linear.y, self.odom_sub.self.odom_sub.twist.twist.angular.z)
         # particles = self.motion_model.evaluate(self.pose_sub, odom)
-        particles = np.array(self.pose_sub)
+        particles = np.array(self.initial_pose)
         # resample the particles based on these probabilities - use np.random.choice
         N = probs.shape[0]
         resam_choices = np.array()

@@ -27,21 +27,22 @@ class ParticleFilter:
         scan_topic = rospy.get_param("~scan_topic", "/scan")
         odom_topic = rospy.get_param("~odom_topic", "/odom")
 
-        self.initial_pose = [0,0,0]
+        self.initial_pose = np.array([0,0,0])
+        self.particles = np.array([0,0,0])
 
 
-        self.laser_sub = rospy.Subscriber(scan_topic, LaserScan, self.lidar_callback, queue_size=1)
 
-        self.odom_sub  = rospy.Subscriber(odom_topic, Odometry, self.odom_callback, queue_size=1)
 
         #  *Important Note #2:* You must respond to pose
         #     initialization requests sent to the /initialpose
         #     topic. You can test that this works properly using the
         #     "Pose Estimate" feature in RViz, which publishes to
         #     /initialpose.
-        self.pose_sub  = rospy.Subscriber("/initialpose", PoseWithCovarianceStamped,
-                                          self.pose_callback, # TODO: Fill this in
-                                          queue_size=1)
+        self.pose_sub  = rospy.Subscriber("/initialpose", PoseWithCovarianceStamped, self.pose_callback, queue_size=1)
+        
+        self.laser_sub = rospy.Subscriber(scan_topic, LaserScan, self.lidar_callback, queue_size=1)
+
+        self.odom_sub  = rospy.Subscriber(odom_topic, Odometry, self.odom_callback, queue_size=1)
 
         #  *Important Note #3:* You must publish your pose estimate to
         #     the following topic. In particular, you must use the
@@ -92,7 +93,12 @@ class ParticleFilter:
         Gets initial pose from rviz data
         Remember to add posewithcovariance topic on rviz
         '''
-        self.initial_pose = np.array([data.pose.position.x, data.pose.position.y, data.pose.orientation.z])
+        rospy.loginfo("enters callback")
+        rospy.loginfo(data.pose.covariance)
+        self.initial_pose = np.array([data.pose.pose.position.x, data.pose.pose.position.y, data.pose.pose.orientation.z])
+        self.particles = np.random.normal(self.initial_pose, data.pose.covariance, size = (200,3))
+        rospy.loginfo(self.particles)
+
     
     def odom_callback(self,data):
         '''
@@ -101,21 +107,23 @@ class ParticleFilter:
         # get odometry data
         odom = np.array([data.twist.twist.linear.x, data.twist.twist.linear.y, data.twist.twist.angular.z])
         # update particle positions from initial pose
-        rospy.loginfo(self.initial_pose)
-        updated_particles = self.motion_model.evaluate(np.array(self.initial_pose), odom)
-        avg = self.calc_avg(updated_particles)
+        # rospy.loginfo(self.initial_pose)
+        self.updated_particles = self.motion_model.evaluate(self.particles, odom)
+        avg = self.calc_avg(self.updated_particles)
         self.odom_pub.publish(avg)
 
     def lidar_callback(self, data):
         '''
         Uses sensor model
         '''
+
+        #odom = np.array([data.twist.twist.linear.x, data.twist.twist.linear.y, data.twist.twist.angular.z])
+        # particles = self.motion_model.evaluate(self.updated_particles, odom)
         # calculate probabilities given initial pose and lidar data
-        probs = self.sensor_model.evaluate(np.array(self.initial_pose), data.ranges)
+        probs = self.sensor_model.evaluate(self.particles, data.ranges)
         # do not use motion model here, use the current particle positions
-        # odom = np.array(self.odom_sub.twist.twist.linear.x, self.odom_sub.self.odom_sub.twist.twist.linear.y, self.odom_sub.self.odom_sub.twist.twist.angular.z)
-        # particles = self.motion_model.evaluate(self.pose_sub, odom)
-        particles = np.array(self.initial_pose)
+
+        #particles = np.array(self.initial_pose)
         # resample the particles based on these probabilities - use np.random.choice
         N = probs.shape[0]
         resam_choices = np.array()
@@ -123,7 +131,7 @@ class ParticleFilter:
         for i in probs:
             # only include particles that have over 50% chance of being there
             if i > 0.5:
-                np.append(resam_choices, particles[i,:])
+                np.append(resam_choices, self.particles[i,:])
                 np.append(resam_choices_probs, probs[i,:])
         # given choices of high probability particles, compute random sample of new particles
         particle_resample = np.random.choice(resam_choices, p=resam_choices_probs)

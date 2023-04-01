@@ -13,8 +13,7 @@ class ParticleFilter:
 
     def __init__(self):
         # Get parameters
-        self.particle_filter_frame = \
-                rospy.get_param("~particle_filter_frame")
+        self.particle_filter_frame = rospy.get_param("~particle_filter_frame")
 
         # Initialize publishers/subscribers
         #
@@ -27,12 +26,12 @@ class ParticleFilter:
         #     information, and *not* use the pose component.
         scan_topic = rospy.get_param("~scan_topic", "/scan")
         odom_topic = rospy.get_param("~odom_topic", "/odom")
-        # self.laser_sub = rospy.Subscriber(scan_topic, LaserScan,
-        #                                   lidar_callback(), # TODO: Fill this in
-        #                                   queue_size=1)
+
+        # Initialize the models
+        self.motion_model = MotionModel()
+        self.sensor_model = SensorModel()
+
         self.laser_sub = rospy.Subscriber(scan_topic, LaserScan, self.lidar_callback(), queue_size=1)
-        # self.odom_sub  = rospy.Subscriber(odom_topic, Odometry, odom_callback(), # TODO: Fill this in
-        #                                   queue_size=1)
         self.odom_sub  = rospy.Subscriber(odom_topic, Odometry, self.odom_callback(), queue_size=1)
 
         #  *Important Note #2:* You must respond to pose
@@ -52,10 +51,6 @@ class ParticleFilter:
         #     odometry you publish here should be with respect to the
         #     "/map" frame.
         self.odom_pub  = rospy.Publisher("/pf/pose/odom", Odometry, queue_size = 1)
-        
-        # Initialize the models
-        self.motion_model = MotionModel()
-        self.sensor_model = SensorModel()
 
         # Implement the MCL algorithm
         # using the sensor model and the motion model
@@ -101,7 +96,6 @@ class ParticleFilter:
         '''
         Uses sensor model
         '''
-
         probs = self.sensor_model.evaluate(self.pose_sub, self.laser_sub)
         odom = np.array(self.odom_sub.twist.twist.linear.x, self.odom_sub.self.odom_sub.twist.twist.linear.y, self.odom_sub.self.odom_sub.twist.twist.angular.z)
         particles = self.motion_model.evaluate(self.pose_sub, odom)

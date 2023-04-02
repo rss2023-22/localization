@@ -74,11 +74,12 @@ class ParticleFilter:
         Take average of the calculated particles returned by the evaluate function of motion or sensor model
         '''
         N = np.array(particles).shape[0]
+        x_pos,y_pos,cos,sin = 0,0,0,0
         for i in range(N):
-            x_pos += particles[i,1]
-            y_pos += particles[i,2]
-            cos += np.cos(particles[i,3])
-            sin += np.sin(particles[i,3])
+            x_pos += particles[i,0]
+            y_pos += particles[i,1]
+            cos += np.cos(particles[i,2])
+            sin += np.sin(particles[i,2])
         avg_x = x_pos/N
         avg_y = y_pos/N
         avg_cos = cos/N
@@ -96,8 +97,10 @@ class ParticleFilter:
         rospy.loginfo("enters callback")
         rospy.loginfo(data.pose.covariance)
         self.initial_pose = np.array([data.pose.pose.position.x, data.pose.pose.position.y, data.pose.pose.orientation.z])
-        self.particles = np.random.normal(self.initial_pose, data.pose.covariance, size = (200,3))
-        rospy.loginfo(self.particles)
+        self.initial_cov = np.array([[data.pose.covariance[0],data.pose.covariance[1],data.pose.covariance[5]],
+                                     [data.pose.covariance[6],data.pose.covariance[7],data.pose.covariance[11]],
+                                     [data.pose.covariance[30],data.pose.covariance[31],data.pose.covariance[35]]])
+        self.particles = np.random.multivariate_normal(self.initial_pose,self.initial_cov, size = 200)
 
     
     def odom_callback(self,data):
@@ -111,7 +114,15 @@ class ParticleFilter:
         # rospy.loginfo(self.initial_pose)
         self.updated_particles = self.motion_model.evaluate(self.particles, odom)
         avg = self.calc_avg(self.updated_particles)
-        self.odom_pub.publish(avg)
+        
+        odom_msg = Odometry()
+        odom_msg.header.stamp = rospy.Time()
+        odom_msg.header.frame_id = 'map'
+        odom_msg.pose.pose.position.x = avg[0]
+        odom_msg.pose.pose.position.y = avg[1]
+        odom_msg.pose.pose.orientation.z = avg[2]
+        
+        self.odom_pub.publish(odom_msg)
 
     def lidar_callback(self, data):
         '''
@@ -121,24 +132,29 @@ class ParticleFilter:
         #odom = np.array([data.twist.twist.linear.x, data.twist.twist.linear.y, data.twist.twist.angular.z])
         # particles = self.motion_model.evaluate(self.updated_particles, odom)
         # calculate probabilities given initial pose and lidar data
-        probs = self.sensor_model.evaluate(self.particles, data.ranges)
+        probs = self.sensor_model.evaluate(self.particles, np.array(data.ranges))
+        probs /= sum(probs)
+        rospy.loginfo(probs)
         # do not use motion model here, use the current particle positions
 
         #particles = np.array(self.initial_pose)
         # resample the particles based on these probabilities - use np.random.choice
-        N = probs.shape[0]
-        resam_choices = np.array()
-        resam_choices_probs = np.array()
-        for i in probs:
-            # only include particles that have over 50% chance of being there
-            if i > 0.5:
-                np.append(resam_choices, self.particles[i,:])
-                np.append(resam_choices_probs, probs[i,:])
-        # given choices of high probability particles, compute random sample of new particles
-        particle_resample = np.random.choice(resam_choices, p=resam_choices_probs)
-        avg = self.calc_avg(particle_resample)
-        self.odom_pub.publish(avg)
 
+        # compute random sample of new particles
+        particle_resample = np.zeros(self.particles.shape)
+        sample_indices = np.random.choice(self.particles.shape[0], size=self.particles.shape[0], p=probs)
+        for i in range(self.particles.shape[0]):
+            particle_resample[i,:] = self.particles[sample_indices[i],:]
+        avg = self.calc_avg(particle_resample)
+        
+        odom_msg = Odometry()
+        odom_msg.header.stamp = rospy.Time()
+        odom_msg.header.frame_id = 'map'
+        odom_msg.pose.pose.position.x = avg[0]
+        odom_msg.pose.pose.position.y = avg[1]
+        odom_msg.pose.pose.orientation.z = avg[2]
+        
+        self.odom_pub.publish(odom_msg)
 
 if __name__ == "__main__":
     rospy.init_node("particle_filter")

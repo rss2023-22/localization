@@ -28,7 +28,7 @@ class ParticleFilter:
         odom_topic = rospy.get_param("~odom_topic", "/odom")
 
         self.initial_pose = np.array([0,0,0])
-        self.particles = np.array([0,0,0])
+        self.particles = None #np.array([0,0,0])
 
 
 
@@ -104,6 +104,7 @@ class ParticleFilter:
         '''
         Uses motion model
         '''
+        if self.particles == None: return
         # get odometry data
         odom = np.array([data.twist.twist.linear.x, data.twist.twist.linear.y, data.twist.twist.angular.z])
         # update particle positions from initial pose
@@ -116,7 +117,7 @@ class ParticleFilter:
         '''
         Uses sensor model
         '''
-
+        if self.particles == None: return
         #odom = np.array([data.twist.twist.linear.x, data.twist.twist.linear.y, data.twist.twist.angular.z])
         # particles = self.motion_model.evaluate(self.updated_particles, odom)
         # calculate probabilities given initial pose and lidar data

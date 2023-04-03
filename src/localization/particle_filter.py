@@ -12,6 +12,9 @@ from threading import Lock
 
 class ParticleFilter:
     def __init__(self):
+        self.motion_model = MotionModel()
+        self.sensor_model = SensorModel()
+        self.last_odom_time = rospy.get_time()
         # Establish thread locking for the two callbacks updating the particle list
         self.particle_lock = Lock()
     
@@ -59,8 +62,7 @@ class ParticleFilter:
         # self.odom_pub  = rospy.Publisher("/base_link_pf", Odometry, queue_size = 1)
 
         # Initialize the models
-        self.motion_model = MotionModel()
-        self.sensor_model = SensorModel()
+        
 
         # Implement the MCL algorithm
         # using the sensor model and the motion model
@@ -71,8 +73,7 @@ class ParticleFilter:
         #
         # Publish a transformation frame between the map
         # and the particle_filter_frame.
- 
-        self.last_odom_time = rospy.get_time()
+
  
         ########## DINURI'S CODE STARTS HERE ############
     def calc_avg(self, particles):

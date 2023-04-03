@@ -159,7 +159,8 @@ class ParticleFilter:
             #odom = np.array([data.twist.twist.linear.x, data.twist.twist.linear.y, data.twist.twist.angular.z])
             # particles = self.motion_model.evaluate(self.updated_particles, odom)
             # calculate probabilities given initial pose and lidar data
-            probs = self.sensor_model.evaluate(self.particles, np.array(data.ranges))
+            spacing = 4
+            probs = self.sensor_model.evaluate(self.particles, np.array(data.ranges)[1::spacing])
             probs /= sum(probs)
             #rospy.loginfo(probs)
             # do not use motion model here, use the current particle positions

@@ -174,7 +174,7 @@ class ParticleFilter:
             
             odom_msg = Odometry()
             odom_msg.header.stamp = rospy.Time()
-            odom_msg.header.frame_id = 'map'
+            odom_msg.header.frame_id = '/map'
             odom_msg.pose.pose.position.x = avg[0]
             odom_msg.pose.pose.position.y = avg[1]
             odom_msg.pose.pose.orientation.z = np.sin(avg[2]/2)

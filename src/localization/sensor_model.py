@@ -157,8 +157,7 @@ class SensorModel:
         # Evaluate the sensor model here!
 
         scans = self.scan_sim.scan(particles)
-        for scan in scans:
-            scan = scan[1::4]
+        scans = scans[:,1::4]
 
         def convert(x,resolution):
             # x is np array

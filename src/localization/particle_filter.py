@@ -124,7 +124,7 @@ class ParticleFilter:
         if self.particles is None: return
         
         with self.particle_lock:
-            #rospy.loginfo('odom callback')
+            rospy.loginfo('odom callback')
             # get odometry data
             now = rospy.get_time()
             odom = np.array([data.twist.twist.linear.x,
@@ -156,6 +156,7 @@ class ParticleFilter:
         if self.particles is None: return
         
         with self.particle_lock:
+            rospy.loginfo('lidar callback')
             #odom = np.array([data.twist.twist.linear.x, data.twist.twist.linear.y, data.twist.twist.angular.z])
             # particles = self.motion_model.evaluate(self.updated_particles, odom)
             # calculate probabilities given initial pose and lidar data

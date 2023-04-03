@@ -131,7 +131,7 @@ class SensorModel:
         out = out/out.sum(axis=0)
         self.sensor_model_table = out
 
-    def evaluate(self, particles, observation):
+    def evaluate(self, particles, observation, spacing=1):
         
         """
         Evaluate how likely each particle is given
@@ -156,8 +156,10 @@ class SensorModel:
         ####################################
         # Evaluate the sensor model here!
 
+        observation = observation[::spacing]
+
         scans = self.scan_sim.scan(particles)
-        scans = scans[:,1::4]
+        scans = scans[:,::spacing]
 
         def convert(x,resolution):
             # x is np array

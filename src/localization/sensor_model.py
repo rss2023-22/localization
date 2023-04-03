@@ -159,7 +159,7 @@ class SensorModel:
         observation = observation[::spacing]
 
         scans = self.scan_sim.scan(particles)
-        scans = scans[:,::spacing]
+        # scans = scans[:,::spacing]
 
         def convert(x,resolution):
             # x is np array
@@ -168,27 +168,18 @@ class SensorModel:
             zmax = self.table_width-1
             new = np.clip(x, 0.0, zmax)
             return new
-        
-        def downsample(arr):
-            coeff = 2 # keep every coeff in arr
-            return arr[1::coeff]
-
 
         scans = convert(scans,self.map_resolution) # list of laserscans (predicted)
         observation = convert(observation, self.map_resolution) # one laserscan, actual
 
 
         # if shit latency; fix! use numpy instead, can do 1 liners! use np.prod and whatnot
-        out = []
+        out = np.zeros(len(scans))
         for i in range(len(scans)):
-            scan = scans[i]
             prob = 1.0
-            for s in range(len(scan)):
-                guessed = scan[s]
-                actual = observation[s]
-                prob *= self.sensor_model_table[int(np.rint(actual))][int(np.rint(guessed))]
-            out.append(prob)
-        out = (np.array(out))**(1.0/2.2) # adjust vals as in readme.ipynb
+            for s in range(len(scans[i])):
+                prob *= self.sensor_model_table[int(np.rint(observation[s]))][int(np.rint(scans[i][s]))]
+            out[i]=prob**(1.0/2.2)
         return out
 
             

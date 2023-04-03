@@ -112,7 +112,7 @@ class ParticleFilter:
             self.initial_cov = np.array([[data.pose.covariance[0],data.pose.covariance[1],data.pose.covariance[5]],
                                          [data.pose.covariance[6],data.pose.covariance[7],data.pose.covariance[11]],
                                          [data.pose.covariance[30],data.pose.covariance[31],data.pose.covariance[35]]])
-            self.particles = np.random.multivariate_normal(self.initial_pose,self.initial_cov, size = 1000)
+            self.particles = np.random.multivariate_normal(self.initial_pose,self.initial_cov, size = 256)
             #rospy.loginfo(self.initial_pose)
             #rospy.loginfo(self.particles[:10,::])
             #rospy.loginfo(self.calc_avg(self.particles))
@@ -127,9 +127,9 @@ class ParticleFilter:
             #rospy.loginfo('odom callback')
             # get odometry data
             now = rospy.get_time()
-            odom = np.array([data.twist.twist.linear.x,
-                             data.twist.twist.linear.y,
-                             data.twist.twist.angular.z])*(now-self.last_odom_time)
+            odom = np.array([data.twist.twist.linear.x*2,
+                             data.twist.twist.linear.y*2,
+                             data.twist.twist.angular.z*1.2])*(now-self.last_odom_time)
             self.last_odom_time = now
             
             # update particle positions from initial pose
@@ -160,7 +160,7 @@ class ParticleFilter:
             #odom = np.array([data.twist.twist.linear.x, data.twist.twist.linear.y, data.twist.twist.angular.z])
             # particles = self.motion_model.evaluate(self.updated_particles, odom)
             # calculate probabilities given initial pose and lidar data
-            probs = self.sensor_model.evaluate(self.particles, np.array(data.ranges),10)
+            probs = self.sensor_model.evaluate(self.particles, np.array(data.ranges),5)
             probs /= sum(probs)
             #rospy.loginfo(probs)
             # do not use motion model here, use the current particle positions

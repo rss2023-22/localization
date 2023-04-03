@@ -128,6 +128,10 @@ class SensorModel:
         out = out/out.sum(axis=0)
         self.sensor_model_table = out
 
+    def downsample(self, arr, spacing):
+        end = spacing * int(len(arr)/spacing)
+        return np.mean(arr[:end].reshape(-1,spacing),1)
+
     def evaluate(self, particles, observation, spacing=1):
         
         """
@@ -153,10 +157,12 @@ class SensorModel:
         ####################################
         # Evaluate the sensor model here!
 
-        observation = observation[::spacing]
+        observation = self.downsample(observation,spacing)
 
-        scans = self.scan_sim.scan(particles)
-        scans = scans[:,::spacing]
+        raw_scans = self.scan_sim.scan(particles)
+        scans = np.zeros((len(raw_scans),int(len(raw_scans[0])/spacing)))
+        for i in range(len(scans)):
+            scans[i] = self.downsample(raw_scans[i],spacing)
 
         def convert(x,resolution):
             # x is np array

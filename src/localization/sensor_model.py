@@ -17,6 +17,8 @@ class SensorModel:
         self.num_beams_per_particle = rospy.get_param("~num_beams_per_particle")
         self.scan_theta_discretization = rospy.get_param("~scan_theta_discretization")
         self.scan_field_of_view = rospy.get_param("~scan_field_of_view")
+        self.lidar_scale_to_map_scale = rospy.get_param("~lidar_scale_to_map_scale", 1.0)
+
 
         ####################################
         # TODO
@@ -166,8 +168,7 @@ class SensorModel:
 
         def convert(x,resolution):
             # x is np array
-            lidar_scale_to_map_scale = 1.0
-            x = x/(resolution*lidar_scale_to_map_scale)
+            x = x/(resolution*self.lidar_scale_to_map_scale)
             zmax = self.table_width-1
             new = np.clip(x, 0.0, zmax)
             return new

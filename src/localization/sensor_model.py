@@ -111,14 +111,11 @@ class SensorModel:
                 
         #compute PHIT prior to others, columns are d
         out = []
+        out = np.zeros((table_width,table_width))
         for i in range(table_width): # z
-            row = []
             for j in range(table_width): # d
-                row.append(phit(i,j))
-            row = np.array(row) 
-            out.append(row)  
+                out[i][j] = phit(i,j)
 
-        out = np.array(out)  
         out = out/out.sum(axis=0)
         out *= alphaHit
         
@@ -159,7 +156,7 @@ class SensorModel:
         observation = observation[::spacing]
 
         scans = self.scan_sim.scan(particles)
-        scans = scans[:,::spacing]
+        #scans = scans[:,::spacing]
 
         def convert(x,resolution):
             # x is np array

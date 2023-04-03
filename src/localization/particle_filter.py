@@ -6,9 +6,11 @@ from motion_model import MotionModel
 
 from sensor_msgs.msg import LaserScan
 from nav_msgs.msg import Odometry
-from geometry_msgs.msg import PoseWithCovarianceStamped
+from geometry_msgs.msg import PoseWithCovarianceStamped,TransformStamped
 
 from threading import Lock
+
+import tf2_ros
 
 class ParticleFilter:
     def __init__(self):
@@ -118,6 +120,32 @@ class ParticleFilter:
             #rospy.loginfo(self.particles[:10,::])
             #rospy.loginfo(self.calc_avg(self.particles))
     
+    def publish_pose(self,pose):
+        avg = pose
+        z,w = np.sin(avg[2]/2),np.cos(avg[2]/2)
+        
+        odom_msg = Odometry()
+        odom_msg.header.stamp = rospy.Time()
+        odom_msg.header.frame_id = '/map'
+        odom_msg.pose.pose.position.x = avg[0]
+        odom_msg.pose.pose.position.y = avg[1]
+        odom_msg.pose.pose.orientation.z = z
+        odom_msg.pose.pose.orientation.w = w
+        
+        self.odom_pub.publish(odom_msg)
+        
+        pose_transform = TransformStamped()
+        pose_transform.header.frame_id = 'map'
+        pose_transform.child_frame_id = 'base_link_pf'
+        pose_transform.transform.translation.x = avg[0]
+        pose_transform.transform.translation.y = avg[1]
+        pose_transform.transform.translation.z = 0
+        pose_transform.transform.rotation.x = 0
+        pose_transform.transform.rotation.y = 0
+        pose_transform.transform.rotation.z = z
+        pose_transform.transform.rotation.w = w
+        tf2_ros.TransformBroadcaster().sendTransform(pose_transform)
+    
     def odom_callback(self,data):
         '''
         Uses motion model
@@ -143,15 +171,7 @@ class ParticleFilter:
             self.updated_particles = self.motion_model.evaluate(self.particles, odom)
             avg = self.calc_avg(self.updated_particles)
             
-            odom_msg = Odometry()
-            odom_msg.header.stamp = rospy.Time()
-            odom_msg.header.frame_id = '/map'
-            odom_msg.pose.pose.position.x = avg[0]
-            odom_msg.pose.pose.position.y = avg[1]
-            odom_msg.pose.pose.orientation.z = np.sin(avg[2]/2)
-            odom_msg.pose.pose.orientation.w = np.cos(avg[2]/2)
-            
-            self.odom_pub.publish(odom_msg)
+            self.publish_pose(avg)
             
             self.particles = self.updated_particles.copy()
 
@@ -181,15 +201,7 @@ class ParticleFilter:
                 particle_resample[i,:] = self.particles[sample_indices[i],:]
             avg = self.calc_avg(particle_resample)
             
-            odom_msg = Odometry()
-            odom_msg.header.stamp = rospy.Time()
-            odom_msg.header.frame_id = '/map'
-            odom_msg.pose.pose.position.x = avg[0]
-            odom_msg.pose.pose.position.y = avg[1]
-            odom_msg.pose.pose.orientation.z = np.sin(avg[2]/2)
-            odom_msg.pose.pose.orientation.w = np.cos(avg[2]/2)
-            
-            self.odom_pub.publish(odom_msg)
+            self.publish_pose(avg)
             
             self.particles = particle_resample.copy()
 

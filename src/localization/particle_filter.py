@@ -8,9 +8,13 @@ from sensor_msgs.msg import LaserScan
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import PoseWithCovarianceStamped
 
+from threading import Lock
 
 class ParticleFilter:
     def __init__(self):
+        # Establish thread locking for the two callbacks updating the particle list
+        self.particle_lock = Lock()
+    
         # Get parameters
         self.particle_filter_frame = \
                 rospy.get_param("~particle_filter_frame")
@@ -68,6 +72,8 @@ class ParticleFilter:
         # Publish a transformation frame between the map
         # and the particle_filter_frame.
  
+        self.last_odom_time = rospy.get_time()
+ 
         ########## DINURI'S CODE STARTS HERE ############
     def calc_avg(self, particles):
         '''
@@ -84,8 +90,9 @@ class ParticleFilter:
         avg_y = y_pos/N
         avg_cos = cos/N
         avg_sin = sin/N
-        theta_pos = np.arctan(avg_sin/avg_cos)
+        theta_pos = np.arctan2(avg_sin,avg_cos)
         avg_pose = [avg_x, avg_y, theta_pos]
+        #rospy.loginfo(avg_pose)
         return avg_pose
     
     # Callback functions
@@ -95,66 +102,87 @@ class ParticleFilter:
         Remember to add posewithcovariance topic on rviz
         '''
         rospy.loginfo("enters callback")
+        rospy.loginfo(data.pose.pose.orientation)
         rospy.loginfo(data.pose.covariance)
-        self.initial_pose = np.array([data.pose.pose.position.x, data.pose.pose.position.y, data.pose.pose.orientation.z])
+        self.initial_pose = np.array([data.pose.pose.position.x,
+                                      data.pose.pose.position.y,
+                                      2*np.arctan2(data.pose.pose.orientation.z,data.pose.pose.orientation.w)])
         self.initial_cov = np.array([[data.pose.covariance[0],data.pose.covariance[1],data.pose.covariance[5]],
                                      [data.pose.covariance[6],data.pose.covariance[7],data.pose.covariance[11]],
                                      [data.pose.covariance[30],data.pose.covariance[31],data.pose.covariance[35]]])
         self.particles = np.random.multivariate_normal(self.initial_pose,self.initial_cov, size = 200)
-
+        rospy.loginfo(self.initial_pose)
+        rospy.loginfo(self.particles[:10,::])
+        rospy.loginfo(self.calc_avg(self.particles))
     
     def odom_callback(self,data):
         '''
         Uses motion model
         '''
-        if self.particles == None: return
-        # get odometry data
-        odom = np.array([data.twist.twist.linear.x, data.twist.twist.linear.y, data.twist.twist.angular.z])
-        # update particle positions from initial pose
-        # rospy.loginfo(self.initial_pose)
-        self.updated_particles = self.motion_model.evaluate(self.particles, odom)
-        avg = self.calc_avg(self.updated_particles)
+        if self.particles is None: return
         
-        odom_msg = Odometry()
-        odom_msg.header.stamp = rospy.Time()
-        odom_msg.header.frame_id = 'map'
-        odom_msg.pose.pose.position.x = avg[0]
-        odom_msg.pose.pose.position.y = avg[1]
-        odom_msg.pose.pose.orientation.z = avg[2]
-        
-        self.odom_pub.publish(odom_msg)
+        with self.particle_lock:
+            #rospy.loginfo('odom callback')
+            # get odometry data
+            now = rospy.get_time()
+            odom = np.array([data.twist.twist.linear.x,
+                             data.twist.twist.linear.y,
+                             data.twist.twist.angular.z])*(now-self.last_odom_time)
+            self.last_odom_time = now
+            
+            # update particle positions from initial pose
+            # rospy.loginfo(self.initial_pose)
+            self.updated_particles = self.motion_model.evaluate(self.particles, odom)
+            avg = self.calc_avg(self.updated_particles)
+            
+            odom_msg = Odometry()
+            odom_msg.header.stamp = rospy.Time()
+            odom_msg.header.frame_id = 'map'
+            odom_msg.pose.pose.position.x = avg[0]
+            odom_msg.pose.pose.position.y = avg[1]
+            odom_msg.pose.pose.orientation.z = np.sin(avg[2]/2)
+            odom_msg.pose.pose.orientation.w = np.cos(avg[2]/2)
+            
+            self.odom_pub.publish(odom_msg)
+            
+            self.particles = self.updated_particles.copy()
 
     def lidar_callback(self, data):
         '''
         Uses sensor model
         '''
-        if self.particles == None: return
-        #odom = np.array([data.twist.twist.linear.x, data.twist.twist.linear.y, data.twist.twist.angular.z])
-        # particles = self.motion_model.evaluate(self.updated_particles, odom)
-        # calculate probabilities given initial pose and lidar data
-        probs = self.sensor_model.evaluate(self.particles, np.array(data.ranges))
-        probs /= sum(probs)
-        rospy.loginfo(probs)
-        # do not use motion model here, use the current particle positions
-
-        #particles = np.array(self.initial_pose)
-        # resample the particles based on these probabilities - use np.random.choice
-
-        # compute random sample of new particles
-        particle_resample = np.zeros(self.particles.shape)
-        sample_indices = np.random.choice(self.particles.shape[0], size=self.particles.shape[0], p=probs)
-        for i in range(self.particles.shape[0]):
-            particle_resample[i,:] = self.particles[sample_indices[i],:]
-        avg = self.calc_avg(particle_resample)
+        if self.particles is None: return
         
-        odom_msg = Odometry()
-        odom_msg.header.stamp = rospy.Time()
-        odom_msg.header.frame_id = 'map'
-        odom_msg.pose.pose.position.x = avg[0]
-        odom_msg.pose.pose.position.y = avg[1]
-        odom_msg.pose.pose.orientation.z = avg[2]
-        
-        self.odom_pub.publish(odom_msg)
+        with self.particle_lock:
+            #odom = np.array([data.twist.twist.linear.x, data.twist.twist.linear.y, data.twist.twist.angular.z])
+            # particles = self.motion_model.evaluate(self.updated_particles, odom)
+            # calculate probabilities given initial pose and lidar data
+            probs = self.sensor_model.evaluate(self.particles, np.array(data.ranges))
+            probs /= sum(probs)
+            #rospy.loginfo(probs)
+            # do not use motion model here, use the current particle positions
+
+            #particles = np.array(self.initial_pose)
+            # resample the particles based on these probabilities - use np.random.choice
+
+            # compute random sample of new particles
+            particle_resample = np.zeros(self.particles.shape)
+            sample_indices = np.random.choice(self.particles.shape[0], size=self.particles.shape[0], p=probs)
+            for i in range(self.particles.shape[0]):
+                particle_resample[i,:] = self.particles[sample_indices[i],:]
+            avg = self.calc_avg(particle_resample)
+            
+            odom_msg = Odometry()
+            odom_msg.header.stamp = rospy.Time()
+            odom_msg.header.frame_id = 'map'
+            odom_msg.pose.pose.position.x = avg[0]
+            odom_msg.pose.pose.position.y = avg[1]
+            odom_msg.pose.pose.orientation.z = np.sin(avg[2]/2)
+            odom_msg.pose.pose.orientation.w = np.cos(avg[2]/2)
+            
+            self.odom_pub.publish(odom_msg)
+            
+            self.particles = particle_resample.copy()
 
 if __name__ == "__main__":
     rospy.init_node("particle_filter")

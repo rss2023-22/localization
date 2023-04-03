@@ -159,7 +159,7 @@ class SensorModel:
         observation = observation[::spacing]
 
         scans = self.scan_sim.scan(particles)
-        # scans = scans[:,::spacing]
+        scans = scans[:,::spacing]
 
         def convert(x,resolution):
             # x is np array

@@ -102,19 +102,20 @@ class ParticleFilter:
         Gets initial pose from rviz data
         Remember to add posewithcovariance topic on rviz
         '''
-        rospy.loginfo("enters callback")
-        rospy.loginfo(data.pose.pose.orientation)
-        rospy.loginfo(data.pose.covariance)
-        self.initial_pose = np.array([data.pose.pose.position.x,
-                                      data.pose.pose.position.y,
-                                      2*np.arctan2(data.pose.pose.orientation.z,data.pose.pose.orientation.w)])
-        self.initial_cov = np.array([[data.pose.covariance[0],data.pose.covariance[1],data.pose.covariance[5]],
-                                     [data.pose.covariance[6],data.pose.covariance[7],data.pose.covariance[11]],
-                                     [data.pose.covariance[30],data.pose.covariance[31],data.pose.covariance[35]]])
-        self.particles = np.random.multivariate_normal(self.initial_pose,self.initial_cov, size = 200)
-        rospy.loginfo(self.initial_pose)
-        rospy.loginfo(self.particles[:10,::])
-        rospy.loginfo(self.calc_avg(self.particles))
+        with self.particle_lock:
+            rospy.loginfo("enters callback")
+            rospy.loginfo(data.pose.pose.orientation)
+            rospy.loginfo(data.pose.covariance)
+            self.initial_pose = np.array([data.pose.pose.position.x,
+                                          data.pose.pose.position.y,
+                                          2*np.arctan2(data.pose.pose.orientation.z,data.pose.pose.orientation.w)])
+            self.initial_cov = np.array([[data.pose.covariance[0],data.pose.covariance[1],data.pose.covariance[5]],
+                                         [data.pose.covariance[6],data.pose.covariance[7],data.pose.covariance[11]],
+                                         [data.pose.covariance[30],data.pose.covariance[31],data.pose.covariance[35]]])
+            self.particles = np.random.multivariate_normal(self.initial_pose,self.initial_cov, size = 200)
+            rospy.loginfo(self.initial_pose)
+            rospy.loginfo(self.particles[:10,::])
+            rospy.loginfo(self.calc_avg(self.particles))
     
     def odom_callback(self,data):
         '''

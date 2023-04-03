@@ -14,6 +14,7 @@ class ParticleFilter:
     def __init__(self):
         self.motion_model = MotionModel()
         self.sensor_model = SensorModel()
+        self.last_odom = None
         self.last_odom_time = rospy.get_time()
         # Establish thread locking for the two callbacks updating the particle list
         self.particle_lock = Lock()
@@ -112,7 +113,7 @@ class ParticleFilter:
             self.initial_cov = np.array([[data.pose.covariance[0],data.pose.covariance[1],data.pose.covariance[5]],
                                          [data.pose.covariance[6],data.pose.covariance[7],data.pose.covariance[11]],
                                          [data.pose.covariance[30],data.pose.covariance[31],data.pose.covariance[35]]])
-            self.particles = np.random.multivariate_normal(self.initial_pose,self.initial_cov, size = 256)
+            self.particles = np.random.multivariate_normal(self.initial_pose,self.initial_cov, size = 512)
             #rospy.loginfo(self.initial_pose)
             #rospy.loginfo(self.particles[:10,::])
             #rospy.loginfo(self.calc_avg(self.particles))
@@ -127,9 +128,14 @@ class ParticleFilter:
             #rospy.loginfo('odom callback')
             # get odometry data
             now = rospy.get_time()
-            odom = np.array([data.twist.twist.linear.x*2,
-                             data.twist.twist.linear.y*2,
-                             data.twist.twist.angular.z*1.2])*(now-self.last_odom_time)
+            now_odom = np.array([data.twist.twist.linear.x,
+                                 data.twist.twist.linear.y,
+                                 data.twist.twist.angular.z])
+            
+            if self.last_odom is None: odom = now_odom*(now-self.last_odom_time)
+            else: odom = (now_odom+self.last_odom)*(now-self.last_odom_time)/2
+            
+            self.last_odom = now_odom
             self.last_odom_time = now
             
             # update particle positions from initial pose
@@ -154,7 +160,7 @@ class ParticleFilter:
         Uses sensor model
         '''
         if self.particles is None: return
-        
+        if np.random.rand() > 0.3: return
         with self.particle_lock:
             #rospy.loginfo('lidar callback')
             #odom = np.array([data.twist.twist.linear.x, data.twist.twist.linear.y, data.twist.twist.angular.z])

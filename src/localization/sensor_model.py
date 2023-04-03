@@ -165,6 +165,11 @@ class SensorModel:
             zmax = self.table_width-1
             new = np.clip(x, 0.0, zmax)
             return new
+        
+        def downsample(arr):
+            coeff = 2 # keep every coeff in arr
+            return arr[1::coeff]
+
 
         scans = convert(scans,self.map_resolution) # list of laserscans (predicted)
         observation = convert(observation, self.map_resolution) # one laserscan, actual

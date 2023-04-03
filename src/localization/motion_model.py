@@ -25,7 +25,7 @@ class MotionModel:
         returns:
             A randomly-generated float
         '''
-        c = (3*b/n)**0.5
+        c = 0#(3*b/n)**0.5
         return sum(np.random.rand(n))*2*c-c*n
 
     def evaluate(self, particles, odometry):

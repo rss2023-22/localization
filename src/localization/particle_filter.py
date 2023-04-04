@@ -142,7 +142,7 @@ class ParticleFilter:
         pose_transform = TransformStamped()
         pose_transform.header.stamp = rospy.Time.now()
         pose_transform.header.frame_id = 'map'
-        pose_transform.child_frame_id = 'base_link_pf'
+        pose_transform.child_frame_id = 'base_link' # 'base_link_pf' for the simulator, 'base_link' for the car
         pose_transform.transform.translation.x = avg[0]
         pose_transform.transform.translation.y = avg[1]
         pose_transform.transform.translation.z = 0

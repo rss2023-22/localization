@@ -39,7 +39,7 @@ class ParticleFilter:
         odom_topic = rospy.get_param("~odom_topic", "/odom")
 
         self.initial_pose = np.array([0,0,0])
-        self.particles = None #np.array([0,0,0])
+        self.particles = np.zeros((200,3)) #np.array([0,0,0])
 
 
         self.transform_pub = tf2_ros.TransformBroadcaster()
@@ -116,7 +116,7 @@ class ParticleFilter:
             self.initial_cov = np.array([[data.pose.covariance[0],data.pose.covariance[1],data.pose.covariance[5]],
                                          [data.pose.covariance[6],data.pose.covariance[7],data.pose.covariance[11]],
                                          [data.pose.covariance[30],data.pose.covariance[31],data.pose.covariance[35]]])
-            self.particles = np.random.multivariate_normal(self.initial_pose,self.initial_cov, size = 512)
+            self.particles = np.random.multivariate_normal(self.initial_pose,self.initial_cov, size = 128)
             #rospy.loginfo(self.initial_pose)
             #rospy.loginfo(self.particles[:10,::])
             #rospy.loginfo(self.calc_avg(self.particles))
@@ -141,8 +141,8 @@ class ParticleFilter:
 
         pose_transform = TransformStamped()
         pose_transform.header.stamp = rospy.Time.now()
-        pose_transform.header.frame_id = 'map'
-        pose_transform.child_frame_id = 'base_link' # 'base_link_pf' for the simulator, 'base_link' for the car
+        pose_transform.header.frame_id = '/map'
+        pose_transform.child_frame_id = self.particle_filter_frame # 'base_link_pf' for the simulator, 'base_link' for the car
         pose_transform.transform.translation.x = avg[0]
         pose_transform.transform.translation.y = avg[1]
         pose_transform.transform.translation.z = 0
@@ -192,7 +192,7 @@ class ParticleFilter:
             #odom = np.array([data.twist.twist.linear.x, data.twist.twist.linear.y, data.twist.twist.angular.z])
             # particles = self.motion_model.evaluate(self.updated_particles, odom)
             # calculate probabilities given initial pose and lidar data
-            probs = self.sensor_model.evaluate(self.particles, np.array(data.ranges),5)
+            probs = self.sensor_model.evaluate(self.particles, np.array(data.ranges),20)
             probs /= sum(probs)
             #rospy.loginfo(probs)
             # do not use motion model here, use the current particle positions

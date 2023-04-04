@@ -6,7 +6,7 @@ from motion_model import MotionModel
 
 from sensor_msgs.msg import LaserScan
 from nav_msgs.msg import Odometry
-from geometry_msgs.msg import PoseWithCovarianceStamped,TransformStamped
+from geometry_msgs.msg import PoseWithCovarianceStamped,TransformStamped,PoseArray,Pose
 import tf.transformations as trans
 
 from threading import Lock
@@ -15,16 +15,27 @@ import tf2_ros
 
 class ParticleFilter:
     def __init__(self):
+        self.rate = 20
+        rospy.Rate(self.rate)
+
+
         self.motion_model = MotionModel()
         self.sensor_model = SensorModel()
+
+        self.particle_filter_frame = \
+                rospy.get_param("~particle_filter_frame")
+        self.num_particles = rospy.get_param("~num_particles")
+
+        scan_topic = rospy.get_param("~scan_topic", "/scan")
+        odom_topic = rospy.get_param("~odom_topic", "/odom")
+
         self.last_odom = None
         self.last_odom_time = rospy.get_time()
         # Establish thread locking for the two callbacks updating the particle list
         self.particle_lock = Lock()
     
         # Get parameters
-        self.particle_filter_frame = \
-                rospy.get_param("~particle_filter_frame")
+    
 
         # Initialize publishers/subscribers
         #
@@ -35,14 +46,10 @@ class ParticleFilter:
         #     a twist component, you will only be provided with the
         #     twist component, so you should rely only on that
         #     information, and *not* use the pose component.
-        scan_topic = rospy.get_param("~scan_topic", "/scan")
-        odom_topic = rospy.get_param("~odom_topic", "/odom")
+        
 
         self.initial_pose = np.array([0,0,0])
         self.particles = None #np.array([0,0,0])
-
-
-        self.transform_pub = tf2_ros.TransformBroadcaster()
 
         #  *Important Note #2:* You must respond to pose
         #     initialization requests sent to the /initialpose
@@ -50,9 +57,7 @@ class ParticleFilter:
         #     "Pose Estimate" feature in RViz, which publishes to
         #     /initialpose.
         self.pose_sub  = rospy.Subscriber("/initialpose", PoseWithCovarianceStamped, self.pose_callback, queue_size=1)
-        
         self.laser_sub = rospy.Subscriber(scan_topic, LaserScan, self.lidar_callback, queue_size=1)
-
         self.odom_sub  = rospy.Subscriber(odom_topic, Odometry, self.odom_callback, queue_size=1)
 
         #  *Important Note #3:* You must publish your pose estimate to
@@ -62,6 +67,8 @@ class ParticleFilter:
         #     odometry you publish here should be with respect to the
         #     "/map" frame.
         self.odom_pub  = rospy.Publisher("/pf/pose/odom", Odometry, queue_size = 1)
+        self.points_pub = rospy.Publisher("/pf/points", PoseArray, queue_size=1)
+        self.transform_pub = tf2_ros.TransformBroadcaster()
         # Change this because in the readme, it says to publish to base_link_pf
         # self.odom_pub  = rospy.Publisher("/base_link_pf", Odometry, queue_size = 1)
 
@@ -107,9 +114,6 @@ class ParticleFilter:
         Remember to add posewithcovariance topic on rviz
         '''
         with self.particle_lock:
-            #rospy.loginfo("enters callback")
-            #rospy.loginfo(data.pose.pose.orientation)
-            #rospy.loginfo(data.pose.covariance)
             self.initial_pose = np.array([data.pose.pose.position.x,
                                           data.pose.pose.position.y,
                                           2*np.arctan2(data.pose.pose.orientation.z,data.pose.pose.orientation.w)])
@@ -117,9 +121,6 @@ class ParticleFilter:
                                          [data.pose.covariance[6],data.pose.covariance[7],data.pose.covariance[11]],
                                          [data.pose.covariance[30],data.pose.covariance[31],data.pose.covariance[35]]])
             self.particles = np.random.multivariate_normal(self.initial_pose,self.initial_cov, size = 512)
-            #rospy.loginfo(self.initial_pose)
-            #rospy.loginfo(self.particles[:10,::])
-            #rospy.loginfo(self.calc_avg(self.particles))
     
     def publish_pose(self,pose):
         avg = pose
@@ -127,7 +128,7 @@ class ParticleFilter:
         quat = trans.quaternion_about_axis(avg[2],(0,0,1))
         
         odom_msg = Odometry()
-        odom_msg.header.stamp = rospy.Time.now()
+        odom_msg.header.stamp = rospy.Time()
         odom_msg.header.frame_id = 'map'
         odom_msg.pose.pose.position.x = avg[0]
         odom_msg.pose.pose.position.y = avg[1]
@@ -151,6 +152,7 @@ class ParticleFilter:
         pose_transform.transform.rotation.z = z #z
         pose_transform.transform.rotation.w = w #w
         self.transform_pub.sendTransform(pose_transform)
+        #tf2_ros.TransformBroadcaster().sendTransform(pose_transform)
     
     def odom_callback(self,data):
         '''
@@ -162,9 +164,7 @@ class ParticleFilter:
             #rospy.loginfo('odom callback')
             # get odometry data
             now = rospy.get_time()
-            now_odom = np.array([data.twist.twist.linear.x,
-                                 data.twist.twist.linear.y,
-                                 data.twist.twist.angular.z])
+            now_odom = np.array([data.twist.twist.linear.x,data.twist.twist.linear.y,data.twist.twist.angular.z])
             
             if self.last_odom is None: odom = now_odom*(now-self.last_odom_time)
             else: odom = (now_odom+self.last_odom)*(now-self.last_odom_time)/2

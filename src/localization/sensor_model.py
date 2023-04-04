@@ -134,6 +134,7 @@ class SensorModel:
         end = spacing * int(len(arr)/spacing)
         return np.mean(arr[:end].reshape(-1,spacing),1)
 
+
     def evaluate(self, particles, observation, spacing=1):
         
         """

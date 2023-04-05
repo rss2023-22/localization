@@ -16,7 +16,7 @@ import tf2_ros
 class ParticleFilter:
     def __init__(self):
 
-        self.num_particles = 512
+        self.num_particles = 200
         self.motion_model = MotionModel()
         self.sensor_model = SensorModel()
         self.last_odom = None
@@ -33,6 +33,8 @@ class ParticleFilter:
         scan_topic = rospy.get_param("~scan_topic", "/scan")
         odom_topic = rospy.get_param("~odom_topic", "/odom")
 
+        self.probabilities = None
+
         self.initial_pose = np.array([0,0,0])
         self.particles = np.zeros((200,3)) #np.array([0,0,0])
 
@@ -47,20 +49,14 @@ class ParticleFilter:
         '''
         Take average of the calculated particles returned by the evaluate function of motion or sensor model
         '''
-        N = np.array(particles).shape[0]
-        x_pos,y_pos,cos,sin = 0,0,0,0
-        for i in range(N):
-            x_pos += particles[i,0]
-            y_pos += particles[i,1]
-            cos += np.cos(particles[i,2])
-            sin += np.sin(particles[i,2])
-        avg_x = x_pos/N
-        avg_y = y_pos/N
-        avg_cos = cos/N
-        avg_sin = sin/N
+
+        avg_x = np.average(particles[:,0], weights=self.probabilities, axis = 0)
+        avg_y = np.average(particles[:,1], weights=self.probabilities, axis = 0)
+        avg_cos = np.average(np.cos(particles[:,2]), weights=self.probabilities, axis=0)
+        avg_sin = np.average(np.sin(particles[:,2]), weights=self.probabilities, axis=0)
         theta_pos = np.arctan2(avg_sin,avg_cos)
-        avg_pose = [avg_x, avg_y, theta_pos]
-        return avg_pose
+
+        return [avg_x, avg_y, theta_pos]
     
     # Callback functions
     def pose_callback(self,data):
@@ -143,9 +139,10 @@ class ParticleFilter:
         if np.random.rand() > 0.3: return
         with self.particle_lock:
 
-            probs = self.sensor_model.evaluate(self.particles, np.array(data.ranges),1)
+            probs = self.sensor_model.evaluate(self.particles, np.array(data.ranges),10)
             probs /= sum(probs)
-            
+            self.probabilities = probs
+
             particle_resample = self.particles[np.random.choice(self.particles.shape[0], size=self.particles.shape[0], p=probs), :]
 
             avg = self.calc_avg(particle_resample)

@@ -25,7 +25,7 @@ class MotionModel:
         returns:
             A randomly-generated float
         '''
-        c = np.sqrt(abs(3*b/n))
+        c = np.sqrt(3*b/n)
         return sum(np.random.rand(n))*2*c-c*n
 
     def evaluate(self, particles, odometry):
@@ -69,11 +69,11 @@ class MotionModel:
                 delta_rot_2 = odometry[2]-delta_rot_1
                 
                 # Add noise
-                delta_rot_1 -= self.eps_b(self.alpha[1]*delta_rot_1+\
+                delta_rot_1 -= self.eps_b(abs(self.alpha[1]*delta_rot_1)+\
                                           self.alpha[2]*delta_trans)
                 delta_trans -= self.eps_b(self.alpha[3]*delta_trans+\
-                                          self.alpha[4]*(delta_rot_1+delta_rot_2))
-                delta_rot_2 -= self.eps_b(self.alpha[1]*delta_rot_2+\
+                                          abs(self.alpha[4]*(delta_rot_1+delta_rot_2)))
+                delta_rot_2 -= self.eps_b(abs(self.alpha[1]*delta_rot_2)+\
                                           self.alpha[2]*delta_trans)
                 
                 # Update the pose

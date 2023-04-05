@@ -158,7 +158,7 @@ class ParticleFilter:
         if np.random.rand() > 0.3: return
         with self.particle_lock:
 
-            probs = self.sensor_model.evaluate(self.particles, np.array(data.ranges),10)
+            probs = self.sensor_model.evaluate(self.particles, np.array(data.ranges),1)
             probs /= sum(probs)
             self.probabilities = probs
 

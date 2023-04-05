@@ -6,7 +6,7 @@ from motion_model import MotionModel
 
 from sensor_msgs.msg import LaserScan
 from nav_msgs.msg import Odometry
-from geometry_msgs.msg import PoseWithCovarianceStamped,TransformStamped
+from geometry_msgs.msg import PoseWithCovarianceStamped,TransformStamped,Pose,PoseArray
 import tf.transformations as trans
 
 from threading import Lock
@@ -44,6 +44,7 @@ class ParticleFilter:
         self.laser_sub = rospy.Subscriber(scan_topic, LaserScan, self.lidar_callback, queue_size=1)
         self.odom_sub  = rospy.Subscriber(odom_topic, Odometry, self.odom_callback, queue_size=1)
         self.odom_pub  = rospy.Publisher("/pf/pose/odom", Odometry, queue_size = 1)
+        self.particle_pub = rospy.Publisher("particles", PoseArray, queue_size = 1)
 
     def calc_avg(self, particles):
         '''
@@ -130,6 +131,24 @@ class ParticleFilter:
             
             self.publish_pose(avg)
             self.particles = self.updated_particles.copy()
+            
+            if True: #Publish particles for debugging purposes
+                particle_msg = PoseArray()
+                particle_msg.header.stamp = rospy.Time.now()
+                particle_msg.header.frame_id = '/map'
+                
+                for p in self.particles:
+                    pose = Pose()
+                    z,w = np.sin(p[2]/2),np.cos(p[2]/2)
+                    pose.position.x = p[0]
+                    pose.position.y = p[1]
+                    pose.orientation.z = z
+                    pose.orientation.w = w
+                    
+                    particle_msg.poses.append(pose)
+                
+                self.particle_pub.publish(particle_msg)
+
 
     def lidar_callback(self, data):
         '''

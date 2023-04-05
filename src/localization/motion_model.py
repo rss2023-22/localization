@@ -8,10 +8,12 @@ class MotionModel:
         self.DETERMINISTIC = rospy.get_param(rospy.search_param('deterministic'))
 
         #Constants for uncertainty - 1,2 are rotational, 3,4 are translational
-        self.alpha = {1: 0.001,
-                      2: 0.001,
-                      3: 0.001,
-                      4: 0.001} #Arbitrary values, no idea if they make sense
+        self.alpha = {1: 0.03,
+                      2: 0.03,
+                      3: 0.02,
+                      4: 0.02} #Arbitrary values, no idea if they make sense
+        self.xy_noise = 0.02
+        self.theta_noise = 0.02
 
     def eps_b(self,b,n=2):
         '''
@@ -46,7 +48,7 @@ class MotionModel:
             particles: An updated matrix of the
                 same size
         """
-
+        
         N = particles.shape[0]
         for i in range(N):
             # Rotate the position components of the odometry to the world frame
@@ -60,6 +62,10 @@ class MotionModel:
                 particles[i,1] += rotated_displacement[1]
                 particles[i,2] += odometry[2]
             else:
+                particles[i,0] += rotated_displacement[0]+np.random.normal(0,self.xy_noise)
+                particles[i,1] += rotated_displacement[1]+np.random.normal(0,self.xy_noise)
+                particles[i,2] += odometry[2]+np.random.normal(0,self.theta_noise)
+                '''
                 # Adapted from Probabilistic Robotics, sample_motion_model_odometry
                 
                 # Decompose motion into three components
@@ -80,6 +86,7 @@ class MotionModel:
                 particles[i,0] += delta_trans*np.cos(particles[i,2]+delta_rot_1)
                 particles[i,1] += delta_trans*np.sin(particles[i,2]+delta_rot_1)
                 particles[i,2] += delta_rot_1+delta_rot_2
+                '''
         
         return particles
 

@@ -131,9 +131,13 @@ class SensorModel:
         out = out/out.sum(axis=0)
         self.sensor_model_table = out
 
-    def downsample(self, arr, spacing):
-        end = spacing * int(len(arr)/spacing)
-        return np.mean(arr[:end].reshape(-1,spacing),1)
+    def downsample(self, arr, spacing, mode = 'direct'):
+        if mode == 'avg':
+            end = spacing * (len(arr) // spacing)
+            return np.mean(arr[:end].reshape(-1, spacing), axis=1)
+        else:
+            return  arr[0::spacing]
+
 
 
     def evaluate(self, particles, observation, spacing=1):
@@ -161,10 +165,9 @@ class SensorModel:
         observation = self.downsample(observation,spacing)
 
         raw_scans = self.scan_sim.scan(particles)
-        scans = np.zeros((len(raw_scans),int(len(raw_scans[0])/spacing)))
-
-        for i in range(len(scans)):
-            scans[i] = self.downsample(raw_scans[i],spacing)
+        scans = raw_scans[:, :int(len(raw_scans[0])//spacing)*spacing]
+        scans = scans.reshape(len(scans), -1, spacing)
+        scans = np.mean(scans, axis=2)
 
         z_k = np.clip(np.array(observation)/ (self.map_resolution*self.lidar_scale_to_map_scale), a_min=0, a_max = self.z_max) # clip observations
         d = np.clip(scans / (self.map_resolution*self.lidar_scale_to_map_scale), a_min = 0, a_max = self.z_max) # clip scans

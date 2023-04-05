@@ -145,11 +145,9 @@ class ParticleFilter:
 
             probs = self.sensor_model.evaluate(self.particles, np.array(data.ranges),1)
             probs /= sum(probs)
+            
+            particle_resample = self.particles[np.random.choice(self.particles.shape[0], size=self.particles.shape[0], p=probs), :]
 
-            particle_resample = np.zeros(self.particles.shape)
-            sample_indices = np.random.choice(self.particles.shape[0], size=self.particles.shape[0], p=probs)
-            for i in range(self.particles.shape[0]):
-                particle_resample[i,:] = self.particles[sample_indices[i],:]
             avg = self.calc_avg(particle_resample)
             
             self.publish_pose(avg)

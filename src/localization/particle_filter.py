@@ -15,10 +15,13 @@ import tf2_ros
 
 class ParticleFilter:
     def __init__(self):
+
+        self.num_particles = 512
         self.motion_model = MotionModel()
         self.sensor_model = SensorModel()
         self.last_odom = None
         self.last_odom_time = rospy.get_time()
+
         # Establish thread locking for the two callbacks updating the particle list
         self.particle_lock = Lock()
     
@@ -73,7 +76,7 @@ class ParticleFilter:
             self.initial_cov = np.array([[data.pose.covariance[0],data.pose.covariance[1],data.pose.covariance[5]],
                                          [data.pose.covariance[6],data.pose.covariance[7],data.pose.covariance[11]],
                                          [data.pose.covariance[30],data.pose.covariance[31],data.pose.covariance[35]]])
-            self.particles = np.random.multivariate_normal(self.initial_pose,self.initial_cov, size = 512)
+            self.particles = np.random.multivariate_normal(self.initial_pose,self.initial_cov, size = self.num_particles)
 
     
     def publish_pose(self,pose):

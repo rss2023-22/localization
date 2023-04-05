@@ -8,10 +8,10 @@ class MotionModel:
         self.DETERMINISTIC = rospy.get_param(rospy.search_param('deterministic'))
 
         #Constants for uncertainty - 1,2 are rotational, 3,4 are translational
-        self.alpha = {1: 0.05,
-                      2: 0.05,
-                      3: 0.03,
-                      4: 0.03} #Arbitrary values, no idea if they make sense
+        self.alpha = {1: 0.001,
+                      2: 0.001,
+                      3: 0.001,
+                      4: 0.001} #Arbitrary values, no idea if they make sense
 
     def eps_b(self,b,n=2):
         '''
@@ -25,7 +25,7 @@ class MotionModel:
         returns:
             A randomly-generated float
         '''
-        c = np.sqrt(3*b/n)
+        c = np.sqrt(abs(3*b/n))
         return sum(np.random.rand(n))*2*c-c*n
 
     def evaluate(self, particles, odometry):

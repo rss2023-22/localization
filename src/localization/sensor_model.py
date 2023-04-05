@@ -31,6 +31,7 @@ class SensorModel:
 
         # Your sensor table will be a `table_width` x `table_width` np array:
         self.table_width = 201
+        self.z_max = self.table_width-1
         ####################################
 
         # Precompute the sensor model table
@@ -157,35 +158,19 @@ class SensorModel:
                given the observation and the map.
         """
 
-        ####################################
-        # Evaluate the sensor model here!
-
         observation = self.downsample(observation,spacing)
 
         raw_scans = self.scan_sim.scan(particles)
         scans = np.zeros((len(raw_scans),int(len(raw_scans[0])/spacing)))
+
         for i in range(len(scans)):
             scans[i] = self.downsample(raw_scans[i],spacing)
 
-        def convert(x,resolution):
-            # x is np array
-            x = x/(resolution*self.lidar_scale_to_map_scale)
-            zmax = self.table_width-1
-            new = np.clip(x, 0.0, zmax)
-            return new
+        z_k = np.clip(np.array(observation)/ (self.map_resolution*self.lidar_scale_to_map_scale), a_min=0, a_max = self.z_max) # clip observations
+        d = np.clip(scans / (self.map_resolution*self.lidar_scale_to_map_scale), a_min = 0, a_max = self.z_max) # clip scans
+        probs = np.prod(self.sensor_model_table[np.rint(z_k).astype(np.int32), np.rint(d).astype(np.int32)], axis=1)**(1/2.2) # get probabilities
 
-        scans = convert(scans,self.map_resolution) # list of laserscans (predicted)
-        observation = convert(observation, self.map_resolution) # one laserscan, actual
-
-
-        # if shit latency; fix! use numpy instead, can do 1 liners! use np.prod and whatnot
-        out = np.zeros(len(scans))
-        for i in range(len(scans)):
-            prob = 1.0
-            for s in range(len(scans[i])):
-                prob *= self.sensor_model_table[int(np.rint(observation[s]))][int(np.rint(scans[i][s]))]
-            out[i]=prob**(1.0/2.2)
-        return out
+        return probs
 
             
 

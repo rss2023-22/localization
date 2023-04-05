@@ -14,11 +14,14 @@ from threading import Lock
 import tf2_ros
 
 class ParticleFilter:
+    
     def __init__(self):
+
         self.motion_model = MotionModel()
         self.sensor_model = SensorModel()
         self.last_odom = None
         self.last_odom_time = rospy.get_time()
+
         # Establish thread locking for the two callbacks updating the particle list
         self.particle_lock = Lock()
     
@@ -26,42 +29,32 @@ class ParticleFilter:
         self.particle_filter_frame = \
                 rospy.get_param("~particle_filter_frame")
 
-
         scan_topic = rospy.get_param("~scan_topic", "/scan")
         odom_topic = rospy.get_param("~odom_topic", "/odom")
 
         self.initial_pose = np.array([0,0,0])
         self.particles = np.zeros((200,3)) #np.array([0,0,0])
 
-
         self.transform_pub = tf2_ros.TransformBroadcaster()
-
         self.pose_sub  = rospy.Subscriber("/initialpose", PoseWithCovarianceStamped, self.pose_callback, queue_size=1)
-        
         self.laser_sub = rospy.Subscriber(scan_topic, LaserScan, self.lidar_callback, queue_size=1)
-
         self.odom_sub  = rospy.Subscriber(odom_topic, Odometry, self.odom_callback, queue_size=1)
-
         self.odom_pub  = rospy.Publisher("/pf/pose/odom", Odometry, queue_size = 1)
+
+        self.spacing = 20 # 20 for real car
+        self.num_particles = 200 # number of particles
+
 
     def calc_avg(self, particles):
         '''
         Take average of the calculated particles returned by the evaluate function of motion or sensor model
         '''
-        N = np.array(particles).shape[0]
-        x_pos,y_pos,cos,sin = 0,0,0,0
-        for i in range(N):
-            x_pos += particles[i,0]
-            y_pos += particles[i,1]
-            cos += np.cos(particles[i,2])
-            sin += np.sin(particles[i,2])
-        avg_x = x_pos/N
-        avg_y = y_pos/N
-        avg_cos = cos/N
-        avg_sin = sin/N
-        theta_pos = np.arctan2(avg_sin,avg_cos)
-        avg_pose = [avg_x, avg_y, theta_pos]
-        #rospy.loginfo(avg_pose)
+
+        avg_pose = [np.mean(particles[:, 0]), 
+                    np.mean(particles[:, 1]), 
+                    np.arctan2(np.mean(np.sin(particles[:, 2])), 
+                            np.mean(np.cos(particles[:, 2])))]
+
         return avg_pose
     
     # Callback functions
@@ -71,19 +64,20 @@ class ParticleFilter:
         Remember to add posewithcovariance topic on rviz
         '''
         with self.particle_lock:
-            #rospy.loginfo("enters callback")
-            #rospy.loginfo(data.pose.pose.orientation)
-            #rospy.loginfo(data.pose.covariance)
-            self.initial_pose = np.array([data.pose.pose.position.x,
-                                          data.pose.pose.position.y,
-                                          2*np.arctan2(data.pose.pose.orientation.z,data.pose.pose.orientation.w)])
-            self.initial_cov = np.array([[data.pose.covariance[0],data.pose.covariance[1],data.pose.covariance[5]],
-                                         [data.pose.covariance[6],data.pose.covariance[7],data.pose.covariance[11]],
-                                         [data.pose.covariance[30],data.pose.covariance[31],data.pose.covariance[35]]])
-            self.particles = np.random.multivariate_normal(self.initial_pose,self.initial_cov, size = 512)
-            #rospy.loginfo(self.initial_pose)
-            #rospy.loginfo(self.particles[:10,::])
-            #rospy.loginfo(self.calc_avg(self.particles))
+ 
+            position_x = data.pose.pose.position.x
+            position_y = data.pose.pose.position.y
+            orientation_z = data.pose.pose.orientation.z
+            orientation_w = data.pose.pose.orientation.w
+
+            self.initial_pose = np.array([position_x, position_y, 2*np.arctan2(orientation_z, orientation_w)])
+
+            covariance_flat = data.pose.covariance[:9]
+            self.initial_cov = np.reshape(covariance_flat, (3, 3))
+
+            self.particles = np.random.multivariate_normal(self.initial_pose, self.initial_cov, size=self.num_particles)
+
+
     
     def publish_pose(self,pose):
         avg = pose
@@ -123,7 +117,6 @@ class ParticleFilter:
         if self.particles is None: return
         
         with self.particle_lock:
-            #rospy.loginfo('odom callback')
             # get odometry data
             now = rospy.get_time()
             now_odom = np.array([data.twist.twist.linear.x,
@@ -137,12 +130,9 @@ class ParticleFilter:
             self.last_odom_time = now
             
             # update particle positions from initial pose
-            # rospy.loginfo(self.initial_pose)
             self.updated_particles = self.motion_model.evaluate(self.particles, odom)
             avg = self.calc_avg(self.updated_particles)
-            
             self.publish_pose(avg)
-            
             self.particles = self.updated_particles.copy()
 
     def lidar_callback(self, data):
@@ -152,18 +142,10 @@ class ParticleFilter:
         if self.particles is None: return
         if np.random.rand() > 0.3: return
         with self.particle_lock:
-            #rospy.loginfo('lidar callback')
-            #odom = np.array([data.twist.twist.linear.x, data.twist.twist.linear.y, data.twist.twist.angular.z])
-            # particles = self.motion_model.evaluate(self.updated_particles, odom)
-            # calculate probabilities given initial pose and lidar data
-            probs = self.sensor_model.evaluate(self.particles, np.array(data.ranges),1)
+
+            probs = self.sensor_model.evaluate(self.particles, np.array(data.ranges),self.spacing)
             probs /= sum(probs)
-            #rospy.loginfo(probs)
-            # do not use motion model here, use the current particle positions
-
-            #particles = np.array(self.initial_pose)
-            # resample the particles based on these probabilities - use np.random.choice
-
+ 
             # compute random sample of new particles
             particle_resample = np.zeros(self.particles.shape)
             sample_indices = np.random.choice(self.particles.shape[0], size=self.particles.shape[0], p=probs)

@@ -8,10 +8,10 @@ class MotionModel:
         self.DETERMINISTIC = rospy.get_param(rospy.search_param('deterministic'))
 
         #Constants for uncertainty - 1,2 are rotational, 3,4 are translational
-        self.alpha = {1: 0.01,
-                      2: 0.01,
-                      3: 0.01,
-                      4: 0.01} #Arbitrary values, no idea if they make sense
+        self.alpha = {1: 0.001,
+                      2: 0.001,
+                      3: 0.001,
+                      4: 0.001} #Arbitrary values, no idea if they make sense
 
     def eps_b(self,b,n=2):
         '''

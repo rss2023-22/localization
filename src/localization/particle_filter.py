@@ -132,7 +132,7 @@ class ParticleFilter:
             self.publish_pose(avg)
             self.particles = self.updated_particles.copy()
             
-            if True: #Publish particles for debugging purposes
+            if False: #Publish particles for debugging purposes
                 particle_msg = PoseArray()
                 particle_msg.header.stamp = rospy.Time.now()
                 particle_msg.header.frame_id = '/map'
@@ -158,7 +158,7 @@ class ParticleFilter:
         if np.random.rand() > 0.3: return
         with self.particle_lock:
 
-            probs = self.sensor_model.evaluate(self.particles, np.array(data.ranges),1)
+            probs = self.sensor_model.evaluate(self.particles, np.array(data.ranges),11)
             probs /= sum(probs)
             self.probabilities = probs
 

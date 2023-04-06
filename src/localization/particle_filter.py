@@ -16,6 +16,10 @@ import tf2_ros
 class ParticleFilter:
     def __init__(self):
 
+        self.measure_convergence_rate = True
+        self.measuring = False
+        self.measure_time = None
+
         self.num_particles = 200
         self.motion_model = MotionModel()
         self.sensor_model = SensorModel()
@@ -131,6 +135,31 @@ class ParticleFilter:
             
             self.publish_pose(avg)
             self.particles = self.updated_particles.copy()
+
+            # ADDING STUFF TO MEASURE CONVERGENC RATE
+            if self.measure_convergence_rate:
+                dev1,dev2,dev3 = self.particles.std(axis=0)
+                #print([dev1,dev2,dev3])
+                # NOTE: up thresholds determined by giving false initialization and examinind stds
+                up_threshold_1 = 0.13
+                up_threshold_2 = 0.13
+                up_threshold_3 = 0.13
+                # NOTE: low threshold determined by giving true initilization and examining STDS
+                low_threshold = 0.07
+                if dev1 > up_threshold_1 or dev2 > up_threshold_2 or dev3 > up_threshold_3:
+                    print('began measuring')
+                    self.measuring = True
+                    self.measure_time = rospy.get_time()
+                if dev1 <= low_threshold and dev2 <= low_threshold and dev3 <= low_threshold and self.measuring:
+                    print('end measuring')
+                    curr = rospy.get_time()
+                    self.measuring = False
+                    diff = curr - self.measure_time
+                    print('Convergence Time = ' + str(diff))
+            # END OF CHANGES!
+
+
+
             
             if False: #Publish particles for debugging purposes
                 particle_msg = PoseArray()

@@ -22,7 +22,7 @@ class ParticleFilter:
         self.measure_convergence_rate = False
         self.measuring = False
         self.measure_time = None
-        self.measure_error = True # only works in SIMULATION
+        self.measure_error = False # only works in SIMULATION
         if self.measure_error:
             self.gt = Point()
             self.pos = Point()
@@ -223,7 +223,7 @@ class ParticleFilter:
         if np.random.rand() > 0.3: return
         with self.particle_lock:
 
-            probs = self.sensor_model.evaluate(self.particles, np.array(data.ranges),1) # IF ON RACECAR, CHANGE 1 to 11
+            probs = self.sensor_model.evaluate(self.particles, np.array(data.ranges),11) # IF ON RACECAR, CHANGE 1 to 11
             probs /= sum(probs)
             self.probabilities = probs
 

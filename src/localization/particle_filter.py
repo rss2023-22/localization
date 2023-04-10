@@ -4,10 +4,13 @@ import rospy
 from sensor_model import SensorModel
 from motion_model import MotionModel
 
+from std_msgs.msg import Float32
 from sensor_msgs.msg import LaserScan
 from nav_msgs.msg import Odometry
-from geometry_msgs.msg import PoseWithCovarianceStamped,TransformStamped,Pose,PoseArray
+from geometry_msgs.msg import PoseWithCovarianceStamped,TransformStamped,Pose,PoseArray, Point
 import tf.transformations as trans
+import tf
+
 
 from threading import Lock
 
@@ -16,9 +19,21 @@ import tf2_ros
 class ParticleFilter:
     def __init__(self):
 
-        self.measure_convergence_rate = True
+        self.measure_convergence_rate = False
         self.measuring = False
         self.measure_time = None
+        self.measure_error = True # only works in SIMULATION
+        if self.measure_error:
+            self.gt = Point()
+            self.pos = Point()
+            self.has_pos = False
+            #self.tf_sub = rospy.Subscriber("/tf",TransformStamped, self.tf_callback, queue_size=10)
+            self.error_pub_x = rospy.Publisher("/error_x", Float32, queue_size=10)
+            self.error_pub_y = rospy.Publisher("/error_y", Float32, queue_size=10)
+            self.error_pub_dist = rospy.Publisher("/error_dist", Float32, queue_size=10)
+            self.gt = (None, None, None) # x,y,z
+            self.tf_listener = tf.TransformListener()
+
 
         self.num_particles = 200
         self.motion_model = MotionModel()
@@ -63,6 +78,19 @@ class ParticleFilter:
 
         return [avg_x, avg_y, theta_pos]
     
+    def tf_callback(self, data):
+        self.gt = data
+        if self.has_pos:
+            x = self.pos.pose.pose.position.x
+            y = self.pos.pose.pose.position.y
+            error_x = abs(x-self.gt[0])
+            error_y = abs(y-self.gt[1])
+            error_dis = np.sqrt(error_x**2+error_y**2)
+            self.error_pub_x.publish(error_x)
+            self.error_pub_y.publish(error_y)
+            self.error_pub_dist.publish(error_dis)
+
+
     # Callback functions
     def pose_callback(self,data):
         '''
@@ -97,6 +125,14 @@ class ParticleFilter:
         odom_msg.pose.pose.orientation.w = w
         
         self.odom_pub.publish(odom_msg)
+        if self.measure_error:
+            self.pos = odom_msg
+            self.tf_listener.waitForTransform("map","base_link", rospy.Time(), rospy.Duration(1.0))
+            trans_vect, _ = self.tf_listener.lookupTransform("map","base_link",rospy.Time(0))
+            self.tf_callback(trans_vect)
+            if not self.has_pos:
+                self.has_pos = True
+
 
         pose_transform = TransformStamped()
         pose_transform.header.stamp = rospy.Time.now()
@@ -187,7 +223,7 @@ class ParticleFilter:
         if np.random.rand() > 0.3: return
         with self.particle_lock:
 
-            probs = self.sensor_model.evaluate(self.particles, np.array(data.ranges),11)
+            probs = self.sensor_model.evaluate(self.particles, np.array(data.ranges),1) # IF ON RACECAR, CHANGE 1 to 11
             probs /= sum(probs)
             self.probabilities = probs
 

@@ -164,10 +164,10 @@ class SensorModel:
 
         observation = self.downsample(observation,spacing)
 
+        # UNCOMMENT THE NEXT 3 LINES IF CODE ON ACTUAL CAR!!!
         scans = self.scan_sim.scan(particles)
-        #scans = raw_scans[:, :int(len(raw_scans[0])//spacing)*spacing]
-        #scans = scans.reshape(len(scans), -1, spacing)
-        #scans = np.mean(scans, axis=2)
+        for i in range(len(scans)):
+            scans[i] = self.downsample(scans[i],spacing)
 
         z_k = np.clip(np.array(observation)/ (self.map_resolution*self.lidar_scale_to_map_scale), a_min=0, a_max = self.z_max) # clip observations
         d = np.clip(scans / (self.map_resolution*self.lidar_scale_to_map_scale), a_min = 0, a_max = self.z_max) # clip scans

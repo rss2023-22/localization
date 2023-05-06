@@ -165,7 +165,7 @@ class SensorModel:
         observation = self.downsample(observation,spacing)
 
         # UNCOMMENT THE NEXT 3 LINES IF CODE ON ACTUAL CAR!!!
-        # scans = self.scan_sim.scan(particles)
+        scans = self.scan_sim.scan(particles)
         # for i in range(len(scans)):
         #     scans[i] = self.downsample(scans[i],spacing)
 
